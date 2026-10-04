@@ -10,6 +10,9 @@ a { color: inherit; }
 .album-card figure { margin: 0; }
 .photo-frame { position: relative; aspect-ratio: var(--photo-ratio, 3 / 2); background: #e8e3d8; }
 .photo-frame img { position: absolute; inset: 0; display: block; width: 100%; height: 100%; object-fit: contain; }
+.photo-link { position: absolute; inset: 0; display: block; }
+.album-title a { text-decoration: none; }
+.album-title a:hover { text-decoration: underline; text-underline-offset: .12em; }
 .album-card:not(:first-child) .photo-frame { aspect-ratio: 3 / 2; }
 .album-caption { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 12px; margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--line); }
 .album-title { margin: 0; font: normal clamp(27px, 4vw, 52px)/1.15 Georgia, "Noto Serif TC", serif; overflow-wrap: anywhere; }
@@ -32,3 +35,27 @@ a { color: inherit; }
 .image-error { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 12px; color: var(--muted); text-align: center; }
 .image-error[hidden] { display: none; }
 .image-error button { min-height: 44px; padding: 8px 20px; border: 1px solid var(--line); background: var(--paper); color: var(--ink); font: inherit; cursor: pointer; }
+.album-header { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin: 0 4vw; padding: 25px 0 18px; }
+.album-header a { text-decoration: none; }
+.album-header a:last-child { font-size: 13px; }
+.album-header a:last-child:hover { text-decoration: underline; }
+.brand { font: normal 44px/1 Georgia, "Times New Roman", serif; letter-spacing: -.04em; }
+.album-page { padding: 36px 4vw; }
+.album-heading { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 32px; }
+.album-heading h1 { margin: 0; font: normal clamp(32px, 5vw, 64px)/1.15 Georgia, "Noto Serif TC", serif; overflow-wrap: anywhere; }
+.album-heading p { color: var(--muted); font-size: 13px; }
+.photo-list { columns: 3; column-gap: 24px; max-width: 1600px; margin: 0 auto; padding: 0; list-style: none; }
+.photo-card { break-inside: avoid; margin-bottom: 24px; }
+.photo-card figure { margin: 0; }
+.photo-card figcaption { border-top: 1px solid var(--line); padding: 12px 0; font-size: 13px; overflow-wrap: anywhere; }
+@media (max-width: 1000px) {
+  .photo-list { columns: 2; }
+}
+@media (max-width: 640px) {
+  .album-header { padding-top: 18px; }
+  .brand { font-size: 36px; }
+  .album-heading { align-items: stretch; flex-direction: column; }
+  .photo-list { columns: 1; column-gap: 14px; }
+  .photo-card { margin-bottom: 16px; }
+  .photo-card figcaption { padding: 8px 0; }
+}
