@@ -197,9 +197,18 @@ def album_page(album: Album, selected: str = "") -> str:
             '</dialog><script src="/static/viewer.js" defer></script>')
 
 
-def document(title: str, body: str) -> str:
+def document(title: str, body: str, url: str = "", image: str = "") -> str:
+    preview = ""
+    if url:
+        preview = (f'<link rel="canonical" href="{escape(url)}">'
+                   f'<meta property="og:title" content="{escape(title)}">'
+                   f'<meta property="og:url" content="{escape(url)}">'
+                   f'<meta property="og:image" content="{escape(image)}">'
+                   '<meta property="og:type" content="website">'
+                   '<meta name="twitter:card" content="summary_large_image">')
     return (f'<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8">'
             f'<meta name="viewport" content="width=device-width, initial-scale=1"><title>{escape(title)}</title>'
+            f'{preview}'
             f'<link rel="stylesheet" href="/static/showcase.css"><script src="/static/showcase.js" defer></script>'
             '<script src="/static/archive.js" defer></script>'
             f'</head><body>{body}</body></html>')
@@ -252,21 +261,29 @@ class ShowcaseHandler(BaseHTTPRequestHandler):
                 filename = unquote(parts[3], errors="strict")
                 with open_photo(album, filename):
                     pass
-                self.send_page(200, f"{filename} · {album.title}", album_page(album, filename))
+                self.send_page(200, f"{filename} · {album.title}", album_page(album, filename),
+                               f"/albums/{album.slug}/{quote(filename, safe='')}", image_url(album, filename))
                 return
             except (KeyError, OSError, ValueError):
                 pass
         if path == "/":
             albums = sorted((album for album in self.server.catalog.values() if album.status == "public"), key=lambda album: album.date, reverse=True)
             self.send_page(200, "Albums", homepage(albums))
+            return
         elif len(parts) == 3 and parts[1] == "albums" and parts[2] in self.server.catalog:
             album = self.server.catalog[parts[2]]
-            self.send_page(200, album.title, album_page(album))
-        else:
-            self.send_page(404, "找不到內容", '<main><h1>找不到這個相簿或相片</h1><a href="/">返回相簿列表</a></main>')
+            try:
+                with open_photo(album, album.cover):
+                    pass
+                self.send_page(200, album.title, album_page(album), f"/albums/{album.slug}", image_url(album, album.cover))
+                return
+            except (OSError, ValueError):
+                pass
+        self.send_page(404, "找不到內容", '<main><h1>找不到這個相簿或相片</h1><a href="/">返回相簿列表</a></main>')
 
-    def send_page(self, status: int, title: str, body: str):
-        content = document(title, body).encode("utf-8")
+    def send_page(self, status: int, title: str, body: str, url: str = "", image: str = ""):
+        content = document(title, body, self.server.public_url + url if url else "",
+                           self.server.public_url + image if image else "").encode("utf-8")
         self.send_content(status, "text/html; charset=utf-8", content)
 
     def send_content(self, status: int, content_type: str, content: bytes):
@@ -283,11 +300,20 @@ def main() -> int:
     parser.add_argument("--albums-root", type=Path, required=True, help="唯讀相簿根目錄")
     parser.add_argument("--host", default="127.0.0.1", help="HTTP 監聽位置（預設僅本機）")
     parser.add_argument("--port", type=int, default=8000, help="HTTP 連接埠")
+    parser.add_argument("--public-url", help="公開站點網址，例如 https://photos.example.com；未指定時使用監聽網址")
     args = parser.parse_args()
     try:
+        if args.public_url is not None:
+            origin = urlsplit(args.public_url)
+            if (origin.scheme not in {"http", "https"} or not origin.hostname
+                    or origin.username is not None or origin.password is not None
+                    or origin.path not in {"", "/"} or origin.port == 0
+                    or re.search(r'[\s\\<>"?#]', args.public_url)):
+                raise ValueError("公開站點網址必須是 HTTP 或 HTTPS 來源，不得含路徑、帳密、查詢或片段。")
         catalog = load_catalog(args.albums_root)
         with ThreadingHTTPServer((args.host, args.port), ShowcaseHandler) as server:
             server.catalog = catalog
+            server.public_url = args.public_url.rstrip("/") if args.public_url else f"http://{args.host}:{server.server_port}"
             print(f"相簿已啟動：http://{args.host}:{server.server_port}", flush=True)
             server.serve_forever()
     except KeyboardInterrupt:
