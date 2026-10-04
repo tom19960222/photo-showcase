@@ -76,12 +76,21 @@ a { color: inherit; }
 .viewer-count { color: #bcbcb6; white-space: nowrap; }
 .viewer-stage { min-height: 0; position: relative; display: grid; place-items: center; container-type: size; }
 .viewer-stage .photo-frame { width: min(100cqw, calc(100cqh * var(--photo-ratio))); background: transparent; }
-.viewer-tools { min-width: 0; padding: 8px 0; font-size: 13px; color: #bcbcb6; }
+.viewer-tools { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px 16px; min-width: 0; padding: 8px 0; font-size: 13px; color: #bcbcb6; }
+.viewer-downloads { display: flex; gap: 12px; }
+.viewer-downloads button { color: #eceae4; }
+.viewer-downloads button[aria-disabled="true"] { opacity: .6; cursor: wait; }
+.viewer-downloads p { margin: 6px 0 0; font-size: 11px; line-height: 1.4; }
+.download-status { grid-column: 1 / -1; margin: 0; }
+.download-status:empty { display: none; }
 .viewer-filename { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .viewer .image-error { color: #bcbcb6; }
 @media (max-width: 640px) {
   .viewer { padding: 12px 12px max(12px, env(safe-area-inset-bottom)); }
   .viewer-heading { gap: 8px; font-size: 13px; }
+  .viewer-tools { grid-template-columns: minmax(0, 1fr); }
+  .viewer-downloads { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .viewer-downloads button { padding: 7px 9px; }
 }
 .viewer-stage { touch-action: pan-y; }
 .viewer-previous, .viewer-next { position: absolute; top: 50%; transform: translateY(-50%); z-index: 1; }
