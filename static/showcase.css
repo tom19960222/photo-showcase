@@ -44,6 +44,12 @@ a { color: inherit; }
 .album-heading { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 32px; }
 .album-heading h1 { margin: 0; font: normal clamp(32px, 5vw, 64px)/1.15 Georgia, "Noto Serif TC", serif; overflow-wrap: anywhere; }
 .album-heading p { color: var(--muted); font-size: 13px; }
+.album-tools { max-width: 340px; flex-shrink: 0; }
+.album-tools button, .download-archive { display: inline-block; min-height: 44px; padding: 10px 16px; border: 1px solid var(--line); background: transparent; color: var(--ink); font: inherit; cursor: pointer; text-decoration: none; }
+.album-tools button:disabled { cursor: wait; opacity: .65; }
+.album-tools .archive-status { margin: 8px 0; }
+.album-tools progress { display: block; max-width: 100%; margin: 12px 0; accent-color: var(--ink); }
+.album-tools [hidden] { display: none; }
 .photo-list { columns: 3; column-gap: 24px; max-width: 1600px; margin: 0 auto; padding: 0; list-style: none; }
 .photo-card { break-inside: avoid; margin-bottom: 24px; }
 .photo-card figure { margin: 0; }
@@ -55,6 +61,7 @@ a { color: inherit; }
   .album-header { padding-top: 18px; }
   .brand { font-size: 36px; }
   .album-heading { align-items: stretch; flex-direction: column; }
+  .album-tools { max-width: none; }
   .photo-list { columns: 1; column-gap: 14px; }
   .photo-card { margin-bottom: 16px; }
   .photo-card figcaption { padding: 8px 0; }

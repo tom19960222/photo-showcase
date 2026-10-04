@@ -11,9 +11,12 @@ import json
 import os
 from pathlib import Path
 import re
+from shutil import copyfileobj
 import sys
 import stat
+from tempfile import TemporaryFile
 from urllib.parse import quote, unquote, urlsplit
+from zipfile import ZipFile
 
 from PIL import Image, ImageOps
 
@@ -168,7 +171,15 @@ def album_page(album: Album) -> str:
             '<a href="/">← 所有相簿</a></header><main class="album-page">'
             f'<div class="album-heading"><div><h1>{escape(album.title)}</h1>'
             f'<p><time datetime="{album.date.isoformat()}">{album.date.isoformat()}</time>'
-            f' · {len(album.photos)} 張相片</p></div></div><ol class="photo-list">')
+            f' · {len(album.photos)} 張相片</p></div>'
+            f'<div class="album-tools" data-archive-url="/archives/{album.slug}.zip">'
+            '<button type="button" class="prepare-archive">下載整本相簿 ZIP</button>'
+            '<p>包含整本相簿的原始 JPG。</p>'
+            '<p role="status" class="archive-status"></p>'
+            '<progress aria-label="相簿 ZIP 準備進度" hidden></progress>'
+            '<button type="button" class="cancel-archive" hidden>取消準備</button>'
+            f'<a class="download-archive" download="{album.slug}.zip" hidden>取得相簿 ZIP</a>'
+            '</div></div><ol class="photo-list">')
     for filename in album.photos:
         body += (f'<li class="photo-card"><figure>{photo_markup(album, filename, loading="lazy")}'
                  f'<figcaption>{escape(filename)}</figcaption></figure></li>')
@@ -179,17 +190,40 @@ def document(title: str, body: str) -> str:
     return (f'<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8">'
             f'<meta name="viewport" content="width=device-width, initial-scale=1"><title>{escape(title)}</title>'
             f'<link rel="stylesheet" href="/static/showcase.css"><script src="/static/showcase.js" defer></script>'
+            '<script src="/static/archive.js" defer></script>'
             f'</head><body>{body}</body></html>')
 
 
 class ShowcaseHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         path = urlsplit(self.path).path
-        static_types = {"/static/showcase.css": "text/css", "/static/showcase.js": "text/javascript"}
+        static_types = {"/static/showcase.css": "text/css", "/static/showcase.js": "text/javascript", "/static/archive.js": "text/javascript"}
         if path in static_types:
             self.send_content(200, static_types[path] + "; charset=utf-8", Path(__file__).with_name("static").joinpath(path.rsplit("/", 1)[1]).read_bytes())
             return
         parts = path.split("/")
+        if len(parts) == 3 and parts[1] == "archives" and parts[2].endswith(".zip"):
+            try:
+                album = self.server.catalog[parts[2][:-4]]
+                with TemporaryFile() as result:
+                    with ZipFile(result, "w") as archive:
+                        for filename in album.photos:
+                            with open_photo(album, filename) as source, archive.open(filename, "w", force_zip64=True) as destination:
+                                copyfileobj(source, destination)
+                    size = result.tell()
+                    result.seek(0)
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/zip")
+                    self.send_header("Content-Disposition", f'attachment; filename="{album.slug}.zip"')
+                    self.send_header("Cache-Control", "no-store")
+                    self.send_header("Content-Length", str(size))
+                    self.end_headers()
+                    copyfileobj(result, self.wfile)
+                return
+            except (BrokenPipeError, ConnectionResetError):
+                return
+            except (KeyError, OSError, ValueError):
+                pass
         if len(parts) == 4 and parts[1] == "images":
             try:
                 album = self.server.catalog[parts[2]]
