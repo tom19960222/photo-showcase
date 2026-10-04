@@ -1,1 +1,4 @@
 /private/
+/config/albums.json
+__pycache__/
+/.venv/
