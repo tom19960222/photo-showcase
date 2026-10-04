@@ -192,7 +192,12 @@ def album_page(album: Album, selected: str = "") -> str:
             '<span class="viewer-count" aria-live="polite"></span><button type="button" class="viewer-close" autofocus>關閉</button></div>'
             '<div class="viewer-stage"><button type="button" class="viewer-previous" aria-label="上一張">←</button>'
             '<button type="button" class="viewer-next" aria-label="下一張">→</button></div>'
-            '<div class="viewer-tools"><span class="viewer-filename"></span></div>'
+            '<div class="viewer-tools"><span class="viewer-filename"></span>'
+            '<div class="viewer-downloads"><div><button type="button" data-download="display" aria-describedby="display-description">下載瀏覽用 JPG</button>'
+            '<p id="display-description">適合瀏覽與日常傳送</p></div>'
+            '<div><button type="button" data-download="original" aria-describedby="original-description">下載原始 JPG</button>'
+            '<p id="original-description">Lightroom 匯出的完整尺寸 JPG</p></div></div>'
+            '<p class="download-status" role="status"></p></div>'
             '<nav class="viewer-strip" aria-label="底片導覽"></nav>'
             '</dialog><script src="/static/viewer.js" defer></script>')
 
@@ -216,6 +221,23 @@ class ShowcaseHandler(BaseHTTPRequestHandler):
             self.send_content(200, static_types[path] + "; charset=utf-8", Path(__file__).with_name("static").joinpath(path.rsplit("/", 1)[1]).read_bytes())
             return
         parts = path.split("/")
+        if len(parts) == 5 and parts[1] == "downloads" and parts[3] in {"display", "original"}:
+            try:
+                album = self.server.catalog[parts[2]]
+                filename = unquote(parts[4], errors="strict")
+                if parts[3] == "display":
+                    content = display_jpg(album, filename)
+                    filename = Path(filename).stem + "-display.jpg"
+                else:
+                    with open_photo(album, filename) as source:
+                        # ponytail: 單張 JPG 完整讀入記憶體；超大檔案需求出現時再改串流交付。
+                        content = source.read()
+                self.send_content(200, "image/jpeg", content, filename=filename)
+                return
+            except (BrokenPipeError, ConnectionResetError):
+                return
+            except (KeyError, OSError, ValueError):
+                pass
         if len(parts) == 3 and parts[1] == "archives" and parts[2].endswith(".zip"):
             try:
                 album = self.server.catalog[parts[2][:-4]]
@@ -269,9 +291,11 @@ class ShowcaseHandler(BaseHTTPRequestHandler):
         content = document(title, body).encode("utf-8")
         self.send_content(status, "text/html; charset=utf-8", content)
 
-    def send_content(self, status: int, content_type: str, content: bytes):
+    def send_content(self, status: int, content_type: str, content: bytes, *, filename: str = ""):
         self.send_response(status)
         self.send_header("Content-Type", content_type)
+        if filename:
+            self.send_header("Content-Disposition", "attachment; filename*=UTF-8''" + quote(filename, safe=""))
         self.send_header("Cache-Control", "no-store")
         self.send_header("Content-Length", str(len(content)))
         self.end_headers()

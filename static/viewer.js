@@ -6,10 +6,58 @@ const previous = viewer.querySelector('.viewer-previous');
 const next = viewer.querySelector('.viewer-next');
 const albumPath = entries[0].pathname.slice(0, entries[0].pathname.lastIndexOf('/'));
 const albumTitle = document.querySelector('.album-heading h1').textContent;
+const downloadStatus = viewer.querySelector('.download-status');
+const downloadButtons = [...viewer.querySelectorAll('[data-download]')];
 let current = -1;
 let opener = null;
+let downloadUrl = null;
+let downloadRequest = null;
+
+function resetDownload() {
+  downloadRequest?.abort();
+  downloadRequest = null;
+  downloadStatus.textContent = '';
+  downloadButtons.forEach(button => button.setAttribute('aria-disabled', 'false'));
+}
+
+for (const button of downloadButtons) {
+  button.addEventListener('click', async () => {
+    if (downloadRequest) return;
+    const request = new AbortController();
+    downloadRequest = request;
+    downloadStatus.textContent = '正在準備下載…';
+    downloadButtons.forEach(control => control.setAttribute('aria-disabled', 'true'));
+    try {
+      const entry = entries[current];
+      const filename = entry.pathname.slice(entry.pathname.lastIndexOf('/') + 1);
+      const response = await fetch(`${albumPath.replace('/albums/', '/downloads/')}/${button.dataset.download}/${filename}`, {signal: request.signal});
+      if (!response.ok || response.headers.get('Content-Type') !== 'image/jpeg') throw new Error();
+      // ponytail: 收齊單張 JPG 才交給瀏覽器；超大檔案需改用串流下載。
+      const content = await response.blob();
+      if (downloadRequest !== request) return;
+      if (downloadUrl) URL.revokeObjectURL(downloadUrl);
+      downloadUrl = URL.createObjectURL(content);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = decodeURIComponent(response.headers.get('Content-Disposition').split("UTF-8''")[1]);
+      link.hidden = true;
+      viewer.append(link);
+      link.click();
+      link.remove();
+      downloadStatus.textContent = '';
+    } catch {
+      if (downloadRequest === request) downloadStatus.textContent = '下載失敗，請重試';
+    } finally {
+      if (downloadRequest === request) {
+        downloadRequest = null;
+        downloadButtons.forEach(control => control.setAttribute('aria-disabled', 'false'));
+      }
+    }
+  });
+}
 
 function showPhoto(index) {
+  resetDownload();
   current = index;
   if (!strip.children.length) {
     entries.forEach((entry, position) => {
@@ -53,6 +101,7 @@ function changePhoto(index) {
 }
 
 function hideViewer() {
+  resetDownload();
   viewer.close();
   document.body.classList.remove('viewer-open');
   document.title = albumTitle;
