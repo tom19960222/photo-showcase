@@ -132,7 +132,7 @@ def display_jpg(album: Album, filename: str) -> bytes:
         return result.getvalue()
 
 
-def photo_markup(album: Album, filename: str) -> str:
+def photo_markup(album: Album, filename: str, *, album_link: bool = False, loading: str = "eager") -> str:
     try:
         with open_photo(album, filename) as source, Image.open(source) as photo:
             width, height = photo.size
@@ -140,8 +140,11 @@ def photo_markup(album: Album, filename: str) -> str:
                 width, height = height, width
     except (OSError, ValueError):
         width, height = 3, 2
-    return (f'<div class="photo-frame" style="--photo-ratio:{width}/{height}">'
-            f'<img src="{escape(image_url(album, filename))}" width="{width}" height="{height}" alt="">'
+    image = f'<img src="{escape(image_url(album, filename))}" width="{width}" height="{height}" loading="{loading}" alt="">'
+    if album_link:
+        image = (f'<a class="photo-link" href="/albums/{album.slug}" '
+                 f'aria-labelledby="album-{album.slug}-title">{image}</a>')
+    return (f'<div class="photo-frame" style="--photo-ratio:{width}/{height}">{image}'
             '<div class="image-error" role="status" hidden><span>相片載入失敗</span>'
             '<button type="button">重試</button></div></div>')
 
@@ -152,11 +155,24 @@ def homepage(albums: list[Album]) -> str:
         return body + '<p class="empty-state">目前尚無公開相簿</p></main>'
     body += '<ul class="album-list">'
     for album in albums:
-        body += (f'<li class="album-card"><figure>{photo_markup(album, album.cover)}'
-                 f'<figcaption class="album-caption"><h2 class="album-title">{escape(album.title)}</h2>'
+        body += (f'<li class="album-card"><figure>{photo_markup(album, album.cover, album_link=True)}'
+                 f'<figcaption class="album-caption"><h2 class="album-title" id="album-{album.slug}-title">'
+                 f'<a href="/albums/{album.slug}">{escape(album.title)}</a></h2>'
                  f'<div class="album-meta"><time datetime="{album.date.isoformat()}">{album.date.isoformat()}</time>'
                  f'<span>{len(album.photos)} 張相片</span></div></figcaption></figure></li>')
     return body + '</ul></main>'
+
+
+def album_page(album: Album) -> str:
+    body = ('<header class="site-header album-header"><a class="brand" href="/">Albums</a>'
+            '<a href="/">← 所有相簿</a></header><main class="album-page">'
+            f'<div class="album-heading"><div><h1>{escape(album.title)}</h1>'
+            f'<p><time datetime="{album.date.isoformat()}">{album.date.isoformat()}</time>'
+            f' · {len(album.photos)} 張相片</p></div></div><ol class="photo-list">')
+    for filename in album.photos:
+        body += (f'<li class="photo-card"><figure>{photo_markup(album, filename, loading="lazy")}'
+                 f'<figcaption>{escape(filename)}</figcaption></figure></li>')
+    return body + '</ol></main>'
 
 
 def document(title: str, body: str) -> str:
@@ -185,6 +201,9 @@ class ShowcaseHandler(BaseHTTPRequestHandler):
         if path == "/":
             albums = sorted((album for album in self.server.catalog.values() if album.status == "public"), key=lambda album: album.date, reverse=True)
             self.send_page(200, "Albums", homepage(albums))
+        elif len(parts) == 3 and parts[1] == "albums" and parts[2] in self.server.catalog:
+            album = self.server.catalog[parts[2]]
+            self.send_page(200, album.title, album_page(album))
         else:
             self.send_page(404, "找不到內容", '<main><h1>找不到這個相簿或相片</h1><a href="/">返回相簿列表</a></main>')
 
