@@ -50,6 +50,12 @@ python3 app.py --albums-root '/path/to/Albums'
 
 瀏覽用 JPG 由原始 JPG 依請求產生，最長邊至多 2400px、不放大較小照片，JPEG 品質 88，套用 EXIF 方向並最佳化。來源位元組不變，衍生圖不寫回來源，也不建立持久快取。圖片入口為 `/images/<slug>/<編碼後的檔名>`，公開與未列出相簿均可交付。每次請求重新檢查來源邊界，停用、未設定相簿、編碼跳脫或啟動後遭連結替換的來源均回傳 404；回應停用瀏覽器快取。
 
+## 相片看圖器
+
+點選相片即可開啟全螢幕深色看圖器，大圖與底片縮圖完整保留構圖。使用底片、上一張／下一張、左右方向鍵或水平滑動換圖；首尾不循環。按 Escape 或「關閉」返回相簿，焦點回到原先開啟的相片；直接開啟相片網址也可返回相簿並定位該張相片。圖片載入失敗時仍可重試、換圖或返回，沒有自動播放或平滑捲動。
+
+每張相片使用 `/albums/<slug>/<編碼後的實際檔名>`，可複製網址、直接載入或重整。看圖期間換圖會更新目前網址；從相簿開啟時，瀏覽器上一頁返回相簿，下一頁回到最後觀看的相片。排序或標題調整不影響原網址，改名或更換 slug 則不提供舊網址轉址。相片頁沿用既有白名單與來源檢查，未發佈、不存在或越界的相片回傳 404。
+
 ## 相簿 ZIP
 
 在相簿頁按「下載整本相簿 ZIP」，準備期間顯示不定進度並可「取消準備」。完成後顯示「ZIP 已準備完成」，按「取得相簿 ZIP」交由瀏覽器下載；這表示檔案備妥，不代表已儲存至裝置。取消或失敗後都可再次操作，舊回應不會覆蓋新的準備狀態。
@@ -66,6 +72,6 @@ python -m playwright install --with-deps chromium
 python -m unittest discover -s tests -v
 ```
 
-若只執行設定與 HTTP 驗收，可分別使用 `-p test_application.py`、`-p test_display.py`、`-p test_album.py` 與 `-p test_archive.py`。瀏覽器驗收使用 `-p test_homepage.py`、`-p test_album_browser.py` 或 `-p test_archive_browser.py`；可設定 `PHOTO_SHOWCASE_EVIDENCE=/tmp/photo-showcase-evidence` 儲存合成資料的截圖。
+若只執行設定與 HTTP 驗收，可分別使用 `-p test_application.py`、`-p test_display.py`、`-p test_album.py`、`-p test_viewer.py` 與 `-p test_archive.py`。瀏覽器驗收使用 `-p test_homepage.py`、`-p test_album_browser.py`、`-p test_viewer_browser.py` 或 `-p test_archive_browser.py`；可設定 `PHOTO_SHOWCASE_EVIDENCE=/tmp/photo-showcase-evidence` 儲存合成資料的截圖。
 
 測試以暫存來源與設定啟動真實應用程式，觀察程序退出與 HTTP 回應；不讀取私人 NAS。合成 JPG 測試資料已隨專案提供，其餘直幅、橫幅與 EXIF 方向資料於暫存目錄產生。涵蓋中央白名單、設定型別與值、日期排序與相片計數、來源及封面缺漏、連結越界、停用免來源、空列表、唯讀來源與未提供入口的 404。另驗證瀏覽用 JPG 可解碼、縮放與方向正確、完整構圖、來源不變，以及手機／平板／桌面欄數、載入失敗重試、空列表和減少動態。相簿驗收涵蓋首頁兩種入口、固定網址重整、未列出相簿、超過八張的自然排序、響應式欄數邊界、長相簿捲動與載入空間保留。執行環境必須允許建立本機 HTTP 連線與啟動 Chromium。
