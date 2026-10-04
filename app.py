@@ -135,7 +135,7 @@ def display_jpg(album: Album, filename: str) -> bytes:
         return result.getvalue()
 
 
-def photo_markup(album: Album, filename: str, *, album_link: bool = False, loading: str = "eager") -> str:
+def photo_markup(album: Album, filename: str, *, album_link: bool = False, photo_link: bool = False, loading: str = "eager") -> str:
     try:
         with open_photo(album, filename) as source, Image.open(source) as photo:
             width, height = photo.size
@@ -147,6 +147,9 @@ def photo_markup(album: Album, filename: str, *, album_link: bool = False, loadi
     if album_link:
         image = (f'<a class="photo-link" href="/albums/{album.slug}" '
                  f'aria-labelledby="album-{album.slug}-title">{image}</a>')
+    elif photo_link:
+        image = (f'<a class="photo-link" href="/albums/{album.slug}/{quote(filename, safe="")}" '
+                 f'aria-label="開啟相片：{escape(filename)}">{image}</a>')
     return (f'<div class="photo-frame" style="--photo-ratio:{width}/{height}">{image}'
             '<div class="image-error" role="status" hidden><span>相片載入失敗</span>'
             '<button type="button">重試</button></div></div>')
@@ -166,9 +169,9 @@ def homepage(albums: list[Album]) -> str:
     return body + '</ul></main>'
 
 
-def album_page(album: Album) -> str:
+def album_page(album: Album, selected: str = "") -> str:
     body = ('<header class="site-header album-header"><a class="brand" href="/">Albums</a>'
-            '<a href="/">← 所有相簿</a></header><main class="album-page">'
+            f'<a href="/">← 所有相簿</a></header><main class="album-page" data-selected="{escape(selected)}">'
             f'<div class="album-heading"><div><h1>{escape(album.title)}</h1>'
             f'<p><time datetime="{album.date.isoformat()}">{album.date.isoformat()}</time>'
             f' · {len(album.photos)} 張相片</p></div>'
@@ -181,9 +184,17 @@ def album_page(album: Album) -> str:
             f'<a class="download-archive" download="{album.slug}.zip" hidden>取得相簿 ZIP</a>'
             '</div></div><ol class="photo-list">')
     for filename in album.photos:
-        body += (f'<li class="photo-card"><figure>{photo_markup(album, filename, loading="lazy")}'
+        body += (f'<li class="photo-card"><figure>{photo_markup(album, filename, photo_link=True, loading="lazy")}'
                  f'<figcaption>{escape(filename)}</figcaption></figure></li>')
-    return body + '</ol></main>'
+    return (body + '</ol></main>'
+            '<dialog class="viewer" aria-label="相片看圖器">'
+            f'<div class="viewer-heading"><span>{escape(album.title)}</span>'
+            '<span class="viewer-count" aria-live="polite"></span><button type="button" class="viewer-close" autofocus>關閉</button></div>'
+            '<div class="viewer-stage"><button type="button" class="viewer-previous" aria-label="上一張">←</button>'
+            '<button type="button" class="viewer-next" aria-label="下一張">→</button></div>'
+            '<div class="viewer-tools"><span class="viewer-filename"></span></div>'
+            '<nav class="viewer-strip" aria-label="底片導覽"></nav>'
+            '</dialog><script src="/static/viewer.js" defer></script>')
 
 
 def document(title: str, body: str) -> str:
@@ -197,7 +208,10 @@ def document(title: str, body: str) -> str:
 class ShowcaseHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         path = urlsplit(self.path).path
-        static_types = {"/static/showcase.css": "text/css", "/static/showcase.js": "text/javascript", "/static/archive.js": "text/javascript"}
+        static_types = {
+            "/static/showcase.css": "text/css", "/static/showcase.js": "text/javascript",
+            "/static/viewer.js": "text/javascript", "/static/archive.js": "text/javascript",
+        }
         if path in static_types:
             self.send_content(200, static_types[path] + "; charset=utf-8", Path(__file__).with_name("static").joinpath(path.rsplit("/", 1)[1]).read_bytes())
             return
@@ -229,6 +243,16 @@ class ShowcaseHandler(BaseHTTPRequestHandler):
                 album = self.server.catalog[parts[2]]
                 content = display_jpg(album, unquote(parts[3], errors="strict"))
                 self.send_content(200, "image/jpeg", content)
+                return
+            except (KeyError, OSError, ValueError):
+                pass
+        if len(parts) == 4 and parts[1] == "albums":
+            try:
+                album = self.server.catalog[parts[2]]
+                filename = unquote(parts[3], errors="strict")
+                with open_photo(album, filename):
+                    pass
+                self.send_page(200, f"{filename} · {album.title}", album_page(album, filename))
                 return
             except (KeyError, OSError, ValueError):
                 pass
