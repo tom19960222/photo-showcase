@@ -92,3 +92,13 @@ class ApplicationFixture(unittest.TestCase):
                 process.terminate()
             process.communicate(timeout=5)
 
+
+class BrowserFixture(ApplicationFixture):
+    @classmethod
+    def setUpClass(cls):
+        from playwright.sync_api import sync_playwright
+
+        playwright = sync_playwright().start()
+        cls.addClassCleanup(playwright.stop)
+        cls.browser = playwright.chromium.launch()
+        cls.addClassCleanup(cls.browser.close)

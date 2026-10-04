@@ -1,11 +1,13 @@
 """以真實程序、暫存相簿與 HTTP 驗證發佈行為。"""
 
+from io import BytesIO
 import json
 import os
 import unittest
 from urllib.error import HTTPError
 from urllib.request import urlopen
 from urllib.parse import quote
+from zipfile import ZipFile
 
 from support import ApplicationFixture, SAMPLE_JPG
 
@@ -129,6 +131,56 @@ class ApplicationTest(ApplicationFixture):
                 with self.subTest(狀態=status, 連結=kind):
                     self.configuration([self.album(folder, f"{status}-{len(folder)}", status=status)])
                     self.assert_startup_fails()
+
+    def test_JPG連結指向非JPG時即使另有合格相片也拒絕整個程序啟動(self):
+        self.photos("合格相簿")
+        for status in ("public", "unlisted"):
+            for kind in ("只有非法連結", "另有合格JPG", "指定非法連結封面"):
+                with self.subTest(狀態=status, 來源=kind):
+                    folder = f"{status}-{kind}"
+                    names = ("source.raw",) if kind == "只有非法連結" else ("source.raw", "photo2.jpg")
+                    output = self.photos(folder, names)
+                    (output / "photo1.jpg").symlink_to("source.raw")
+                    entry = self.album(folder, "invalid", status=status)
+                    if kind == "指定非法連結封面":
+                        entry["cover"] = "photo1.jpg"
+                    self.configuration([self.album("合格相簿", "valid"), entry])
+                    self.assert_startup_fails()
+
+    def test_同一輸出內指向合格JPG的連結可作封面並由各入口交付(self):
+        output = self.photos("相簿甲", ("photo2.JPEG",))
+        (output / "photo1.jpg").symlink_to("photo2.JPEG")
+        for status in ("public", "unlisted"):
+            with self.subTest(狀態=status):
+                self.configuration([self.album(status=status, cover="photo1.jpg")])
+                with self.serving() as base:
+                    album = self.page(base, "/albums/album-a")
+                    self.assertIn("2 張相片", album)
+                    self.assertIn(base + "/images/album-a/photo1.jpg", album)
+                    self.page(base, "/albums/album-a/photo1.jpg")
+                    for path in ("/images/album-a/photo1.jpg", "/downloads/album-a/display/photo1.jpg",
+                                 "/downloads/album-a/original/photo1.jpg"):
+                        with urlopen(base + path, timeout=2) as response:
+                            self.assertEqual(response.status, 200)
+                            self.assertEqual(response.headers["Content-Type"], "image/jpeg")
+                            content = response.read()
+                        if "/original/" in path:
+                            self.assertEqual(content, SAMPLE_JPG.read_bytes())
+                    with urlopen(base + "/archives/album-a.zip", timeout=2) as response:
+                        with ZipFile(BytesIO(response.read())) as archive:
+                            self.assertEqual(archive.namelist(), ["photo1.jpg", "photo2.JPEG"])
+                            self.assertEqual(archive.read("photo1.jpg"), SAMPLE_JPG.read_bytes())
+
+    def test_停用相簿不檢查JPG連結或指定封面的來源(self):
+        output = self.photos("相簿甲", ("source.raw",))
+        (output / "photo1.jpg").symlink_to("source.raw")
+        self.configuration([self.album(status="disabled", cover="photo1.jpg")])
+        with self.serving() as base:
+            self.assertIn("目前尚無公開相簿", self.page(base))
+            with self.assertRaises(HTTPError) as caught:
+                urlopen(base + "/albums/album-a", timeout=2)
+            with caught.exception as response:
+                self.assertEqual(response.status, 404)
 
     def test_設定不存在無法解析或不是UTF8時回報錯誤並退出(self):
         self.assert_startup_fails()
