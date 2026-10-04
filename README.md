@@ -62,6 +62,20 @@ python3 app.py --albums-root '/path/to/Albums'
 
 下載入口為 `/downloads/<slug>/<display|original>/<編碼後的檔名>`。瀏覽用 JPG 沿用圖片入口的最佳化結果，以 `<原檔名主體>-display.jpg` 交付；原始 JPG 完整保留來源位元組與中繼資料。下載回應採 JPG 類型與 UTF-8 編碼檔名，每次沿用白名單及來源邊界檢查；公開與未列出均可使用，停用、未設定、無效及越界來源一律 404。單張 JPG 會完整讀入伺服器記憶體，瀏覽器收齊後才交給下載功能，因此超大單檔仍受雙方可用記憶體限制。網站不宣稱檔案已儲存到裝置。
 
+## 社群預覽
+
+相簿及相片頁的真實 HTTP 回應在 `<head>` 提供 Open Graph 標題、固定網址、圖片網址及 canonical 連結，不需執行 JavaScript。相簿使用指定或自然排序回退封面，相片使用目前那張瀏覽用 JPG。中文標題與特殊檔名會跳脫及編碼，預覽連結仍開啟同一個相簿或看圖器。
+
+一般部署須以 `--public-url` 指定外部可連線的站點 origin，例如：
+
+```sh
+python3 app.py --albums-root '/path/to/Albums' --public-url 'https://photos.example.com'
+```
+
+此參數只接受 HTTP／HTTPS 的協定、主機及選用連接埠，結尾 `/` 可省略，不接受子路徑、帳密、查詢或片段。站點須提供網站根路徑，且此網址的相簿與圖片路由須可從外部連線；TLS 與外部轉送由部署環境提供。公開網址與 `--host`、`--port` 的內部監聽位置分開，不依請求的 Host 或轉送標頭推測。未指定時以監聽網址產生絕對網址，供本機開發使用；此參數不更動既有相簿 JSON 契約。
+
+公開與未列出相簿都能透過直接網址產生預覽；未列出不會進入首頁，任何持有網址的人仍可存取，沒有登入保護。停用、未知或無效網址回傳不帶預覽資料的 404；圖片交付每次檢查白名單與來源，不沿用已停用的舊圖。社群平台自行管理顯示與快取，驗收直接讀取本站 HTTP 回應及 JPG，不依賴第三方更新預覽。
+
 ## 相簿 ZIP
 
 在相簿頁按「下載整本相簿 ZIP」，準備期間顯示不定進度並可「取消準備」。完成後顯示「ZIP 已準備完成」，按「取得相簿 ZIP」交由瀏覽器下載；這表示檔案備妥，不代表已儲存至裝置。取消或失敗後都可再次操作，舊回應不會覆蓋新的準備狀態。
@@ -78,6 +92,6 @@ python -m playwright install --with-deps chromium
 python -m unittest discover -s tests -v
 ```
 
-若只執行設定與 HTTP 驗收，可分別使用 `-p test_application.py`、`-p test_display.py`、`-p test_album.py`、`-p test_viewer.py`、`-p test_download.py` 與 `-p test_archive.py`。瀏覽器驗收使用 `-p test_homepage.py`、`-p test_album_browser.py`、`-p test_viewer_browser.py`、`-p test_download_browser.py` 或 `-p test_archive_browser.py`；可設定 `PHOTO_SHOWCASE_EVIDENCE=/tmp/photo-showcase-evidence` 儲存合成資料的截圖。
+若只執行設定與 HTTP 驗收，可分別使用 `-p test_application.py`、`-p test_display.py`、`-p test_album.py`、`-p test_viewer.py`、`-p test_download.py`、`-p test_archive.py` 與 `-p test_social.py`。瀏覽器驗收使用 `-p test_homepage.py`、`-p test_album_browser.py`、`-p test_viewer_browser.py`、`-p test_download_browser.py`、`-p test_archive_browser.py` 或 `-p test_social_browser.py`；可設定 `PHOTO_SHOWCASE_EVIDENCE=/tmp/photo-showcase-evidence` 儲存合成資料的截圖。
 
 測試以暫存來源與設定啟動真實應用程式，觀察程序退出與 HTTP 回應；不讀取私人 NAS。合成 JPG 測試資料已隨專案提供，其餘直幅、橫幅與 EXIF 方向資料於暫存目錄產生。涵蓋中央白名單、設定型別與值、日期排序與相片計數、來源及封面缺漏、連結越界、停用免來源、空列表、唯讀來源與未提供入口的 404。另驗證瀏覽用 JPG 可解碼、縮放與方向正確、完整構圖、來源不變，以及手機／平板／桌面欄數、載入失敗重試、空列表和減少動態。相簿驗收涵蓋首頁兩種入口、固定網址重整、未列出相簿、超過八張的自然排序、響應式欄數邊界、長相簿捲動與載入空間保留。執行環境必須允許建立本機 HTTP 連線與啟動 Chromium。
