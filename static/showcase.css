@@ -59,3 +59,29 @@ a { color: inherit; }
   .photo-card { margin-bottom: 16px; }
   .photo-card figcaption { padding: 8px 0; }
 }
+.viewer-open { overflow: hidden; }
+.viewer { width: 100vw; height: 100dvh; max-width: none; max-height: none; margin: 0; padding: 16px 28px max(12px, env(safe-area-inset-bottom)); border: 0; background: #121313; color: #eceae4; color-scheme: dark; }
+.viewer[open] { display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto; gap: 8px; }
+.viewer :focus-visible { outline: 2px solid #aa8154; outline-offset: 4px; }
+.viewer button { min-width: 44px; min-height: 44px; border: 1px solid #434440; padding: 8px 14px; background: #171817b8; color: inherit; font: inherit; cursor: pointer; }
+.viewer-heading { display: flex; align-items: center; gap: 16px; font-size: 14px; }
+.viewer-heading > span:first-child { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.viewer-count { color: #bcbcb6; white-space: nowrap; }
+.viewer-stage { min-height: 0; position: relative; display: grid; place-items: center; container-type: size; }
+.viewer-stage .photo-frame { width: min(100cqw, calc(100cqh * var(--photo-ratio))); background: transparent; }
+.viewer-tools { min-width: 0; padding: 8px 0; font-size: 13px; color: #bcbcb6; }
+.viewer-filename { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.viewer .image-error { color: #bcbcb6; }
+@media (max-width: 640px) {
+  .viewer { padding: 12px 12px max(12px, env(safe-area-inset-bottom)); }
+  .viewer-heading { gap: 8px; font-size: 13px; }
+}
+.viewer-stage { touch-action: pan-y; }
+.viewer-previous, .viewer-next { position: absolute; top: 50%; transform: translateY(-50%); z-index: 1; }
+.viewer-previous { left: 0; }
+.viewer-next { right: 0; }
+.viewer button:disabled { opacity: .3; cursor: default; }
+.viewer-strip { display: flex; align-items: center; gap: 8px; overflow-x: auto; padding: 6px 4px 8px; }
+.viewer-strip button { flex-shrink: 0; min-width: 0; padding: 3px; border-color: transparent; }
+.viewer-strip button[aria-current="true"] { border-color: #f4e9d5; }
+.viewer-strip img { display: block; height: 48px; width: auto; object-fit: contain; }
