@@ -80,8 +80,9 @@ def load_catalog(root: Path) -> dict[str, Album]:
         for path in source.iterdir():
             if path.suffix.lower() not in {".jpg", ".jpeg"}:
                 continue
-            if path.is_symlink() and (not path.is_file() or path.resolve(strict=True).parent != source):
-                raise ValueError(f"第 {number} 本已發佈相簿的 JPG 連結超出來源範圍。")
+            if path.is_symlink() and (not path.is_file() or path.resolve(strict=True).parent != source
+                                      or path.resolve(strict=True).suffix.lower() not in {".jpg", ".jpeg"}):
+                raise ValueError(f"第 {number} 本已發佈相簿的 JPG 連結超出來源範圍或未指向合格 JPG。")
             if path.is_file():
                 filenames.append(path.name)
         photos = tuple(sorted(filenames, key=natural_key))

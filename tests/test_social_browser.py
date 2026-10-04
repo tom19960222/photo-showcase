@@ -4,23 +4,13 @@ import os
 from pathlib import Path
 import unittest
 
-from playwright.sync_api import expect, sync_playwright
+from playwright.sync_api import expect
 
-from support import ApplicationFixture
+from support import BrowserFixture
 from test_social import PreviewHead
 
 
-class SocialBrowserTest(ApplicationFixture):
-    @classmethod
-    def setUpClass(cls):
-        cls.playwright = sync_playwright().start()
-        cls.browser = cls.playwright.chromium.launch()
-
-    @classmethod
-    def tearDownClass(cls):
-        cls.browser.close()
-        cls.playwright.stop()
-
+class SocialBrowserTest(BrowserFixture):
     def test_停用JS仍讀到預覽且連結開啟正確內容並維持未列出(self):
         filename = '相片 & <2> " #100%.JPEG'
         encoded = '%E7%9B%B8%E7%89%87%20%26%20%3C2%3E%20%22%20%23100%25.JPEG'

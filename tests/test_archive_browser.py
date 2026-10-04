@@ -5,22 +5,12 @@ from pathlib import Path
 import unittest
 from zipfile import ZipFile
 
-from playwright.sync_api import expect, sync_playwright
+from playwright.sync_api import expect
 
-from support import ApplicationFixture
+from support import BrowserFixture
 
 
-class ArchiveBrowserTest(ApplicationFixture):
-    @classmethod
-    def setUpClass(cls):
-        cls.playwright = sync_playwright().start()
-        cls.browser = cls.playwright.chromium.launch()
-
-    @classmethod
-    def tearDownClass(cls):
-        cls.browser.close()
-        cls.playwright.stop()
-
+class ArchiveBrowserTest(BrowserFixture):
     def save_evidence(self, page, name):
         destination = os.environ.get("PHOTO_SHOWCASE_EVIDENCE")
         if destination:

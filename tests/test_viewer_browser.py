@@ -5,13 +5,13 @@ from pathlib import Path
 import unittest
 from urllib.parse import quote
 
-from playwright.sync_api import expect, sync_playwright
+from playwright.sync_api import expect
 
-from support import ApplicationFixture
+from support import BrowserFixture
 import test_album_browser
 
 
-class ViewerBrowserTest(ApplicationFixture):
+class ViewerBrowserTest(BrowserFixture):
     mixed_album = test_album_browser.AlbumBrowserTest.mixed_album
     def save_evidence(self, page, name):
         destination = os.environ.get("PHOTO_SHOWCASE_EVIDENCE")
@@ -19,16 +19,6 @@ class ViewerBrowserTest(ApplicationFixture):
             directory = Path(destination)
             directory.mkdir(parents=True, exist_ok=True)
             page.screenshot(path=str(directory / f"{name}.png"))
-
-    @classmethod
-    def setUpClass(cls):
-        cls.playwright = sync_playwright().start()
-        cls.browser = cls.playwright.chromium.launch()
-
-    @classmethod
-    def tearDownClass(cls):
-        cls.browser.close()
-        cls.playwright.stop()
 
     def test_大圖載入失敗保留比例可重試換圖返回並遵循減少動態(self):
         self.mixed_album()

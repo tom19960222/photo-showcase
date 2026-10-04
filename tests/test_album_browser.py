@@ -5,22 +5,12 @@ from pathlib import Path
 import unittest
 
 from PIL import Image, ImageDraw
-from playwright.sync_api import expect, sync_playwright
+from playwright.sync_api import expect
 
-from support import ApplicationFixture
+from support import BrowserFixture
 
 
-class AlbumBrowserTest(ApplicationFixture):
-    @classmethod
-    def setUpClass(cls):
-        cls.playwright = sync_playwright().start()
-        cls.browser = cls.playwright.chromium.launch()
-
-    @classmethod
-    def tearDownClass(cls):
-        cls.browser.close()
-        cls.playwright.stop()
-
+class AlbumBrowserTest(BrowserFixture):
     def mixed_album(self):
         filenames = (
             "photo1.jpg", "photo2.JPG", "photo3.jpg", "photo4.jpg", "photo5.jpg",

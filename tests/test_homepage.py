@@ -5,22 +5,12 @@ from pathlib import Path
 import unittest
 
 from PIL import Image, ImageDraw
-from playwright.sync_api import expect, sync_playwright
+from playwright.sync_api import expect
 
-from support import ApplicationFixture
+from support import BrowserFixture
 
 
-class HomepageTest(ApplicationFixture):
-    @classmethod
-    def setUpClass(cls):
-        cls.playwright = sync_playwright().start()
-        cls.browser = cls.playwright.chromium.launch()
-
-    @classmethod
-    def tearDownClass(cls):
-        cls.browser.close()
-        cls.playwright.stop()
-
+class HomepageTest(BrowserFixture):
     def public_albums(self):
         titles = ("午後散步", "海岸微風", "山間日常", "巷口時光", "冬日晨光", "夏末河畔", "旅途片刻", "春日印象")
         colors = ("#ab6d46", "#507e89", "#818965", "#c29364", "#76868e", "#88896d", "#ba8c75", "#779c90")
