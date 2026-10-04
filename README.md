@@ -1,12 +1,15 @@
 # 攝影相簿展示
 
-使用 Python 3.11 以上即可啟動，目前應用程式與測試僅使用標準函式庫。相簿來源採唯讀存取，未列入中央設定的資料夾一律不發佈。
+使用 Python 3.11 以上與 Pillow 啟動，支援 Linux 與 macOS。相簿來源採唯讀存取，未列入中央設定的資料夾一律不發佈。
 
 ## 啟動
 
-在專案目錄建立設定，並指定相簿根目錄：
+先在專案目錄安裝圖片處理依賴、建立設定，再指定相簿根目錄：
 
 ```sh
+python3 -m venv .venv
+. .venv/bin/activate
+python -m pip install -r requirements.txt
 cp config/albums.example.json config/albums.json
 python3 app.py --albums-root '/path/to/Albums'
 ```
@@ -39,10 +42,22 @@ python3 app.py --albums-root '/path/to/Albums'
 
 未知欄位、重複 `folder`／`slug`、錯誤型別、版本或不合法值均會阻止啟動。任一本已發佈相簿缺少來源、第一層 JPG 或指定封面時，整個應用程式回報錯誤並退出，不會部分發佈。設定更動後請重新啟動。
 
+## 瀏覽用 JPG 與首頁
+
+首頁沿用暖色 C 版型：手機一欄、700px 起兩欄、1080px 起三欄，平板與桌面的最新相簿跨整列。各封面保留完整構圖，下方直幅與橫幅共用一致橫幅容器。相片載入失敗時顯示「相片載入失敗」，可按「重試」重新載入。
+
+瀏覽用 JPG 由原始 JPG 依請求產生，最長邊至多 2400px、不放大較小照片，JPEG 品質 88，套用 EXIF 方向並最佳化。來源位元組不變，衍生圖不寫回來源，也不建立持久快取。圖片入口為 `/images/<slug>/<編碼後的檔名>`，公開與未列出相簿均可交付。每次請求重新檢查來源邊界，停用、未設定相簿、編碼跳脫或啟動後遭連結替換的來源均回傳 404；回應停用瀏覽器快取。
+
 ## 測試
 
+安裝測試依賴與 Chromium 後執行完整 HTTP／瀏覽器驗收：
+
 ```sh
-python3 -m unittest discover -s tests -v
+python -m pip install -r requirements-dev.txt
+python -m playwright install --with-deps chromium
+python -m unittest discover -s tests -v
 ```
 
-測試以暫存來源與設定啟動真實應用程式，觀察程序退出與 HTTP 回應；不讀取私人 NAS。合成 JPG 測試資料已隨專案提供。涵蓋中央白名單、設定型別與值、日期排序與相片計數、來源及封面缺漏、連結越界、停用免來源、空列表、唯讀來源與未提供入口的 404。執行環境必須允許建立本機 HTTP 連線。
+若只執行設定與 HTTP 驗收，可分別使用 `-p test_application.py` 與 `-p test_display.py`。瀏覽器驗收使用 `-p test_homepage.py`；可設定 `PHOTO_SHOWCASE_EVIDENCE=/tmp/photo-showcase-evidence` 儲存合成資料的截圖。
+
+測試以暫存來源與設定啟動真實應用程式，觀察程序退出與 HTTP 回應；不讀取私人 NAS。合成 JPG 測試資料已隨專案提供，其餘直幅、橫幅與 EXIF 方向資料於暫存目錄產生。涵蓋中央白名單、設定型別與值、日期排序與相片計數、來源及封面缺漏、連結越界、停用免來源、空列表、唯讀來源與未提供入口的 404。另驗證瀏覽用 JPG 可解碼、縮放與方向正確、完整構圖、來源不變，以及手機／平板／桌面欄數、載入失敗重試、空列表和減少動態。執行環境必須允許建立本機 HTTP 連線與啟動 Chromium。

@@ -1,15 +1,21 @@
 """以明確白名單發佈 Lightroom 相簿。"""
 
 import argparse
+from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
 from datetime import date
 from html import escape
+from io import BytesIO
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import os
 from pathlib import Path
 import re
 import sys
-from urllib.parse import urlsplit
+import stat
+from urllib.parse import quote, unquote, urlsplit
+
+from PIL import Image, ImageOps
 
 
 @dataclass(frozen=True)
@@ -89,27 +95,107 @@ def load_catalog(root: Path) -> dict[str, Album]:
     return catalog
 
 
+def image_url(album: Album, filename: str) -> str:
+    return f"/images/{album.slug}/{quote(filename, safe='')}"
+
+
+@contextmanager
+def open_photo(album: Album, filename: str):
+    """每次交付都檢查白名單，以目錄描述符防止來源被連結替換。"""
+    if not single_filename(filename) or filename not in album.photos:
+        raise FileNotFoundError
+    try:
+        source = (album.source / filename).resolve(strict=True)
+    except RuntimeError:
+        raise FileNotFoundError from None
+    if source.parent != album.source or source.name not in album.photos:
+        raise FileNotFoundError
+    with ExitStack() as stack:
+        directory = os.open("/", os.O_RDONLY | os.O_DIRECTORY)
+        stack.callback(os.close, directory)
+        for component in album.source.parts[1:]:
+            directory = os.open(component, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=directory)
+            stack.callback(os.close, directory)
+        descriptor = os.open(source.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory)
+        with os.fdopen(descriptor, "rb") as photo:
+            if not stat.S_ISREG(os.fstat(photo.fileno()).st_mode):
+                raise FileNotFoundError
+            yield photo
+
+
+def display_jpg(album: Album, filename: str) -> bytes:
+    with open_photo(album, filename) as source, Image.open(source) as original:
+        photo = ImageOps.exif_transpose(original)
+        photo.thumbnail((2400, 2400), Image.Resampling.LANCZOS)
+        result = BytesIO()
+        photo.convert("RGB").save(result, "JPEG", quality=88, optimize=True, progressive=True)
+        return result.getvalue()
+
+
+def photo_markup(album: Album, filename: str) -> str:
+    try:
+        with open_photo(album, filename) as source, Image.open(source) as photo:
+            width, height = photo.size
+            if photo.getexif().get(274) in {5, 6, 7, 8}:
+                width, height = height, width
+    except (OSError, ValueError):
+        width, height = 3, 2
+    return (f'<div class="photo-frame" style="--photo-ratio:{width}/{height}">'
+            f'<img src="{escape(image_url(album, filename))}" width="{width}" height="{height}" alt="">'
+            '<div class="image-error" role="status" hidden><span>相片載入失敗</span>'
+            '<button type="button">重試</button></div></div>')
+
+
+def homepage(albums: list[Album]) -> str:
+    body = '<header class="site-header"><h1>Albums</h1></header><main>'
+    if not albums:
+        return body + '<p class="empty-state">目前尚無公開相簿</p></main>'
+    body += '<ul class="album-list">'
+    for album in albums:
+        body += (f'<li class="album-card"><figure>{photo_markup(album, album.cover)}'
+                 f'<figcaption class="album-caption"><h2 class="album-title">{escape(album.title)}</h2>'
+                 f'<div class="album-meta"><time datetime="{album.date.isoformat()}">{album.date.isoformat()}</time>'
+                 f'<span>{len(album.photos)} 張相片</span></div></figcaption></figure></li>')
+    return body + '</ul></main>'
+
+
 def document(title: str, body: str) -> str:
-    return f'<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{escape(title)}</title></head><body>{body}</body></html>'
+    return (f'<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8">'
+            f'<meta name="viewport" content="width=device-width, initial-scale=1"><title>{escape(title)}</title>'
+            f'<link rel="stylesheet" href="/static/showcase.css"><script src="/static/showcase.js" defer></script>'
+            f'</head><body>{body}</body></html>')
 
 
 class ShowcaseHandler(BaseHTTPRequestHandler):
     def do_GET(self):
-        if urlsplit(self.path).path == "/":
+        path = urlsplit(self.path).path
+        static_types = {"/static/showcase.css": "text/css", "/static/showcase.js": "text/javascript"}
+        if path in static_types:
+            self.send_content(200, static_types[path] + "; charset=utf-8", Path(__file__).with_name("static").joinpath(path.rsplit("/", 1)[1]).read_bytes())
+            return
+        parts = path.split("/")
+        if len(parts) == 4 and parts[1] == "images":
+            try:
+                album = self.server.catalog[parts[2]]
+                content = display_jpg(album, unquote(parts[3], errors="strict"))
+                self.send_content(200, "image/jpeg", content)
+                return
+            except (KeyError, OSError, ValueError):
+                pass
+        if path == "/":
             albums = sorted((album for album in self.server.catalog.values() if album.status == "public"), key=lambda album: album.date, reverse=True)
-            body = "<main><h1>Albums</h1>"
-            if albums:
-                body += "<ul>" + "".join(f'<li><h2>{escape(album.title)}</h2><time datetime="{album.date.isoformat()}">{album.date.isoformat()}</time> · {len(album.photos)} 張相片</li>' for album in albums) + "</ul>"
-            else:
-                body += "<p>目前尚無公開相簿</p>"
-            self.send_page(200, "Albums", body + "</main>")
+            self.send_page(200, "Albums", homepage(albums))
         else:
             self.send_page(404, "找不到內容", '<main><h1>找不到這個相簿或相片</h1><a href="/">返回相簿列表</a></main>')
 
     def send_page(self, status: int, title: str, body: str):
         content = document(title, body).encode("utf-8")
+        self.send_content(status, "text/html; charset=utf-8", content)
+
+    def send_content(self, status: int, content_type: str, content: bytes):
         self.send_response(status)
-        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Type", content_type)
+        self.send_header("Cache-Control", "no-store")
         self.send_header("Content-Length", str(len(content)))
         self.end_headers()
         self.wfile.write(content)
